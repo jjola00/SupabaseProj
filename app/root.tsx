@@ -1,13 +1,23 @@
 import {
+  json,
   Links,
   Meta,
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLoaderData,
 } from "@remix-run/react";
-import type { LinksFunction } from "@remix-run/node";
+import type { LinksFunction, LoaderFunction } from "@remix-run/node";
 
 import "./tailwind.css";
+import { useState } from "react";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
+
+import type { Database } from "db_types";
+type TypedSupabaseClient = SupabaseClient<Database>
+export type SupabaseOutletContext = {
+  supabase: TypedSupabaseClient
+}
 
 export const links: LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -22,7 +32,22 @@ export const links: LinksFunction = () => [
   },
 ];
 
+export const loader: LoaderFunction = async () => {
+  const env = {
+    SUPABASE_URL: process.env.SUPABASE_URL!,
+    SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY!,
+  }
+
+  return json({ env })
+}
+  
 export function Layout({ children }: { children: React.ReactNode }) {
+
+  const { env } = useLoaderData<typeof loader>()
+  const [supabase] = useState(() => createClient<Database>(
+    env.SUPABASE_URL,
+    env.SUPABASE_ANON_KEY
+  ))
   return (
     <html lang="en">
       <head>
@@ -32,7 +57,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body>
-        {children}
+        <Outlet context={{ supabase }} />
         <ScrollRestoration />
         <Scripts />
       </body>
