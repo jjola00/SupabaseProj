@@ -1,58 +1,64 @@
+import { json, MetaFunction } from "@remix-run/node"
+import createServerSupabase from "utils/supabase.server"
 import {
-  json,
   Links,
+  LiveReload,
   Meta,
   Outlet,
   Scripts,
   ScrollRestoration,
   useLoaderData,
-} from "@remix-run/react";
-import type { LinksFunction, LoaderFunction } from "@remix-run/node";
+} from "@remix-run/react"
+import { SupabaseClient } from "@supabase/supabase-js"
+import { useEffect, useState } from "react"
 
-import "./tailwind.css";
-import { useState } from "react";
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "db_types"
+import { createBrowserClient } from "@supabase/auth-helpers-remix"
 
-import type { Database } from "db_types";
 type TypedSupabaseClient = SupabaseClient<Database>
+
 export type SupabaseOutletContext = {
   supabase: TypedSupabaseClient
 }
 
-export const links: LinksFunction = () => [
-  { rel: "preconnect", href: "https://fonts.googleapis.com" },
-  {
-    rel: "preconnect",
-    href: "https://fonts.gstatic.com",
-    crossOrigin: "anonymous",
-  },
-  {
-    rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
-  },
-];
+export const meta: MetaFunction = () => [
+  { charset: "utf-8" },
+  { title: "New Remix App" },
+  { viewport: "width=device-width,initial-scale=1" },
+]
 
-export const loader: LoaderFunction = async () => {
+export const loader = async ({ request }: { request: Request }) => {
   const env = {
     SUPABASE_URL: process.env.SUPABASE_URL!,
     SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY!,
   }
+  const response = new Response()
+  const supabase = createServerSupabase({ request, response })
 
-  return json({ env })
+  const {
+    data: session,
+  } = await supabase.auth.getSession()
+
+  return json({ env, session }, {headers: response.headers})
 }
-  
-export function Layout({ children }: { children: React.ReactNode }) {
 
-  const { env } = useLoaderData<typeof loader>()
-  const [supabase] = useState(() => createClient<Database>(
-    env.SUPABASE_URL,
-    env.SUPABASE_ANON_KEY
-  ))
+export default function App() {
+  const { env, session } = useLoaderData<typeof loader>()
+
+  console.log({ server: { session }}) 
+  const [supabase] = useState(() =>
+    createBrowserClient<Database>(env.SUPABASE_URL, env.SUPABASE_ANON_KEY)
+  )
+
+  useEffect(() => {
+    supabase.auth
+      .getSession()
+      .then((session) => console.log({ client: { session } }))
+  }, []) 
+
   return (
     <html lang="en">
       <head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
       </head>
@@ -60,11 +66,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Outlet context={{ supabase }} />
         <ScrollRestoration />
         <Scripts />
+        <LiveReload />
       </body>
     </html>
-  );
-}
-
-export default function App() {
-  return <Outlet />;
+  )
 }
